@@ -1,0 +1,62 @@
+---
+- name: Deploy Laravel App
+  hosts: backend
+  become: yes
+  vars:
+    app_dir: /home/ubuntu/laravel-app
+    artifact: /tmp/laravel-app.zip
+
+  tasks:
+
+    - name: Upload artifact to server
+      ansible.builtin.copy:
+        src: laravel-app.zip
+        dest: "{{ artifact }}"
+        mode: '0644'
+
+    - name: Ensure app directory exists
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+
+    - name: Extract artifact
+      ansible.builtin.unarchive:
+        src: /tmp/laravel-app.zip
+        dest: "{{ app_dir }}"
+        remote_src: yes
+
+    - name: Set correct permissions
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        recurse: yes
+        owner: ubuntu
+        group: ubuntu
+    - name: Add PHP 8.2 repo
+      ansible.builtin.apt_repository:
+        repo: ppa:ondrej/php
+        state: present
+
+    - name: Install PHP 8.2 & common extensions
+      ansible.builtin.apt:
+        name:
+          - php8.2
+          - php8.2-cli
+          - php8.2-mbstring
+          - php8.2-bcmath
+          - php8.2-curl
+          - php8.2-mysql
+          - php8.2-xml
+          - php8.2-zip
+          - php8.2-sqlite3 
+
+        state: present
+        update_cache: yes
+
+    - name: Set PHP 8.2 as default
+      ansible.builtin.command: update-alternatives --set php /usr/bin/php8.2
+
+    - name: Run migrations
+      command: php artisan migrate --force
+      args:
+        chdir: "{{ app_dir }}"

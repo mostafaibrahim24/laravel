@@ -1,0 +1,48 @@
+name: Backend workflow
+
+on:
+  push:
+    branches:
+      - 12.x
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      INVENTORY: ${{ secrets.INVENTORY_INI }}
+      PEM_KEY: ${{ secrets.SERVER_PEM }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python & Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip git
+          pip3 install ansible
+          ansible-galaxy collection install community.docker
+
+
+      - name: Save private key
+        run: |
+          echo "${PEM_KEY}" > appinstances-kp.pem
+          chmod 600 appinstances-kp.pem
+
+      - name: Save inventory
+        run: |
+          echo "${INVENTORY}" > inventory.ini
+      - name: Set up PHP & Composer
+        run: |
+          sudo apt update
+          sudo apt install -y php-cli unzip git
+          curl -sS https://getcomposer.org/installer | php
+          sudo mv composer.phar /usr/local/bin/composer
+
+      - name: Install dependencies
+        run: composer install --no-dev --optimize-autoloader --prefer-dist
+
+      - name: Zip project for deployment
+        run: zip -r laravel-app.zip . -x ".git/*"
+      - name: Deploy Backend
+        run: ansible-playbook -i inventory.ini deploy.yaml 
